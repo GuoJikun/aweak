@@ -1,10 +1,18 @@
 use crate::core::{AwakeManager, AwakeMode};
 use chrono::{DateTime, Local};
-use muda::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use std::sync::{Arc, Mutex};
+use muda::{CheckMenuItem, Menu, MenuEvent, PredefinedMenuItem, Submenu};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tray_icon::menu::MenuEvent;
 use tray_icon::{TrayIcon, TrayIconBuilder};
+
+struct SendSyncWrapper<T>(T);
+unsafe impl<T> Send for SendSyncWrapper<T> {}
+unsafe impl<T> Sync for SendSyncWrapper<T> {}
+
+static PASSIVE_ITEM: OnceLock<SendSyncWrapper<CheckMenuItem>> = OnceLock::new();
+static INDEFINITE_ITEM: OnceLock<SendSyncWrapper<CheckMenuItem>> = OnceLock::new();
+static DISPLAY_ON_ITEM: OnceLock<SendSyncWrapper<CheckMenuItem>> = OnceLock::new();
+static TRAY_ICON_REF: OnceLock<SendSyncWrapper<TrayIcon>> = OnceLock::new();
 
 fn parse_expire_time(hours: u32, minutes: u32) -> Option<SystemTime> {
     let now = Local::now();
@@ -24,20 +32,32 @@ fn parse_expire_time(hours: u32, minutes: u32) -> Option<SystemTime> {
     Some(UNIX_EPOCH + Duration::from_secs(ts))
 }
 
+fn update_menu_checked(current_mode: AwakeMode, keep_display_on: bool) {
+    if let Some(item) = PASSIVE_ITEM.get() {
+        item.0.set_checked(current_mode == AwakeMode::Passive);
+    }
+    if let Some(item) = INDEFINITE_ITEM.get() {
+        item.0.set_checked(current_mode == AwakeMode::Indefinite);
+    }
+    if let Some(item) = DISPLAY_ON_ITEM.get() {
+        item.0.set_checked(keep_display_on);
+    }
+}
+
 pub fn create_tray_icon(
     manager: Arc<Mutex<AwakeManager>>,
 ) -> Result<TrayIcon, Box<dyn std::error::Error>> {
     let menu = Menu::new();
 
-    let passive_item = MenuItem::new("被动模式（禁用）", true, None);
-    let indefinite_item = MenuItem::new("无限期", true, None);
+    let passive_item = CheckMenuItem::with_id("passive", "被动模式（禁用）", true, true, None);
+    let indefinite_item = CheckMenuItem::with_id("indefinite", "无限期", true, false, None);
 
     let timed_menu = Submenu::new("定时", true);
-    let timed_30min = MenuItem::new("30 分钟", true, None);
-    let timed_1hour = MenuItem::new("1 小时", true, None);
-    let timed_2hours = MenuItem::new("2 小时", true, None);
-    let timed_4hours = MenuItem::new("4 小时", true, None);
-    let timed_8hours = MenuItem::new("8 小时", true, None);
+    let timed_30min = muda::MenuItem::with_id("timed_30min", "30 分钟", true, None);
+    let timed_1hour = muda::MenuItem::with_id("timed_1hour", "1 小时", true, None);
+    let timed_2hours = muda::MenuItem::with_id("timed_2hours", "2 小时", true, None);
+    let timed_4hours = muda::MenuItem::with_id("timed_4hours", "4 小时", true, None);
+    let timed_8hours = muda::MenuItem::with_id("timed_8hours", "8 小时", true, None);
     timed_menu.append(&timed_30min)?;
     timed_menu.append(&timed_1hour)?;
     timed_menu.append(&timed_2hours)?;
@@ -45,11 +65,11 @@ pub fn create_tray_icon(
     timed_menu.append(&timed_8hours)?;
 
     let expirable_menu = Submenu::new("过期", true);
-    let expirable_22 = MenuItem::new("今晚 22:00", true, None);
-    let expirable_23 = MenuItem::new("今晚 23:00", true, None);
-    let expirable_00 = MenuItem::new("今晚 24:00", true, None);
-    let expirable_08 = MenuItem::new("明天 08:00", true, None);
-    let expirable_12 = MenuItem::new("明天 12:00", true, None);
+    let expirable_22 = muda::MenuItem::with_id("expirable_22", "今晚 22:00", true, None);
+    let expirable_23 = muda::MenuItem::with_id("expirable_23", "今晚 23:00", true, None);
+    let expirable_00 = muda::MenuItem::with_id("expirable_00", "今晚 24:00", true, None);
+    let expirable_08 = muda::MenuItem::with_id("expirable_08", "明天 08:00", true, None);
+    let expirable_12 = muda::MenuItem::with_id("expirable_12", "明天 12:00", true, None);
     expirable_menu.append(&expirable_22)?;
     expirable_menu.append(&expirable_23)?;
     expirable_menu.append(&expirable_00)?;
@@ -57,9 +77,9 @@ pub fn create_tray_icon(
     expirable_menu.append(&expirable_12)?;
 
     let separator1 = PredefinedMenuItem::separator();
-    let display_on_item = MenuItem::new("保持屏幕常亮", true, None);
+    let display_on_item = CheckMenuItem::with_id("display_on", "保持屏幕常亮", true, false, None);
     let separator2 = PredefinedMenuItem::separator();
-    let exit_item = MenuItem::new("退出", true, None);
+    let exit_item = muda::MenuItem::with_id("exit", "退出", true, None);
 
     menu.append(&passive_item)?;
     menu.append(&indefinite_item)?;
@@ -74,113 +94,119 @@ pub fn create_tray_icon(
 
     let tray_icon = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_tooltip("aweak - 保持唤醒")
+        .with_tooltip("aweak - 被动模式")
         .with_icon(icon)
         .build()?;
 
-    let manager_clone = manager.clone();
-    let event_receiver = MenuEvent::receiver();
+    let _ = PASSIVE_ITEM.set(SendSyncWrapper(passive_item));
+    let _ = INDEFINITE_ITEM.set(SendSyncWrapper(indefinite_item));
+    let _ = DISPLAY_ON_ITEM.set(SendSyncWrapper(display_on_item));
+    let _ = TRAY_ICON_REF.set(SendSyncWrapper(tray_icon.clone()));
 
-    let passive_id = passive_item.id().clone();
-    let indefinite_id = indefinite_item.id().clone();
-    let timed_30min_id = timed_30min.id().clone();
-    let timed_1hour_id = timed_1hour.id().clone();
-    let timed_2hours_id = timed_2hours.id().clone();
-    let timed_4hours_id = timed_4hours.id().clone();
-    let timed_8hours_id = timed_8hours.id().clone();
-    let expirable_22_id = expirable_22.id().clone();
-    let expirable_23_id = expirable_23.id().clone();
-    let expirable_00_id = expirable_00.id().clone();
-    let expirable_08_id = expirable_08.id().clone();
-    let expirable_12_id = expirable_12.id().clone();
-    let display_on_id = display_on_item.id().clone();
-    let exit_id = exit_item.id().clone();
+    MenuEvent::set_event_handler(Some(move |event: muda::MenuEvent| {
+        let mut mgr = manager.lock().unwrap();
 
-    std::thread::spawn(move || loop {
-        if let Ok(event) = event_receiver.recv() {
-            let mut mgr = manager_clone.lock().unwrap();
+        let id_str = &event.id.0;
 
-            if event.id == passive_id {
-                mgr.set_mode(AwakeMode::Passive);
-                let _ = mgr.release();
-                log::info!("模式已切换为被动模式");
-            } else if event.id == indefinite_id {
-                mgr.set_mode(AwakeMode::Indefinite);
-                mgr.set_time_limit(0);
-                let _ = mgr.apply();
-                log::info!("模式已切换为无限期");
-            } else if event.id == timed_30min_id {
-                mgr.set_mode(AwakeMode::Timed);
-                mgr.set_time_limit(30 * 60);
-                let _ = mgr.apply();
-                log::info!("模式已切换为定时 30 分钟");
-            } else if event.id == timed_1hour_id {
-                mgr.set_mode(AwakeMode::Timed);
-                mgr.set_time_limit(60 * 60);
-                let _ = mgr.apply();
-                log::info!("模式已切换为定时 1 小时");
-            } else if event.id == timed_2hours_id {
-                mgr.set_mode(AwakeMode::Timed);
-                mgr.set_time_limit(2 * 60 * 60);
-                let _ = mgr.apply();
-                log::info!("模式已切换为定时 2 小时");
-            } else if event.id == timed_4hours_id {
-                mgr.set_mode(AwakeMode::Timed);
-                mgr.set_time_limit(4 * 60 * 60);
-                let _ = mgr.apply();
-                log::info!("模式已切换为定时 4 小时");
-            } else if event.id == timed_8hours_id {
-                mgr.set_mode(AwakeMode::Timed);
-                mgr.set_time_limit(8 * 60 * 60);
-                let _ = mgr.apply();
-                log::info!("模式已切换为定时 8 小时");
-            } else if event.id == expirable_22_id {
-                mgr.set_mode(AwakeMode::Expirable);
-                if let Some(t) = parse_expire_time(22, 0) {
-                    mgr.set_expire_at(t);
-                }
-                let _ = mgr.apply();
-                log::info!("模式已切换为过期 今晚 22:00");
-            } else if event.id == expirable_23_id {
-                mgr.set_mode(AwakeMode::Expirable);
-                if let Some(t) = parse_expire_time(23, 0) {
-                    mgr.set_expire_at(t);
-                }
-                let _ = mgr.apply();
-                log::info!("模式已切换为过期 今晚 23:00");
-            } else if event.id == expirable_00_id {
-                mgr.set_mode(AwakeMode::Expirable);
-                if let Some(t) = parse_expire_time(24, 0) {
-                    mgr.set_expire_at(t);
-                }
-                let _ = mgr.apply();
-                log::info!("模式已切换为过期 今晚 24:00");
-            } else if event.id == expirable_08_id {
-                mgr.set_mode(AwakeMode::Expirable);
-                if let Some(t) = parse_expire_time(32, 0) {
-                    mgr.set_expire_at(t);
-                }
-                let _ = mgr.apply();
-                log::info!("模式已切换为过期 明天 08:00");
-            } else if event.id == expirable_12_id {
-                mgr.set_mode(AwakeMode::Expirable);
-                if let Some(t) = parse_expire_time(36, 0) {
-                    mgr.set_expire_at(t);
-                }
-                let _ = mgr.apply();
-                log::info!("模式已切换为过期 明天 12:00");
-            } else if event.id == display_on_id {
-                let current = mgr.is_keep_display_on();
-                mgr.set_keep_display_on(!current);
-                let _ = mgr.apply();
-                log::info!("保持屏幕常亮: {}", !current);
-            } else if event.id == exit_id {
-                let _ = mgr.release();
-                log::info!("正在退出...");
-                std::process::exit(0);
+        if id_str == "passive" {
+            mgr.set_mode(AwakeMode::Passive);
+            let _ = mgr.release();
+            log::info!("模式已切换为被动模式");
+        } else if id_str == "indefinite" {
+            mgr.set_mode(AwakeMode::Indefinite);
+            mgr.set_time_limit(0);
+            let _ = mgr.apply();
+            log::info!("模式已切换为无限期");
+        } else if id_str == "timed_30min" {
+            mgr.set_mode(AwakeMode::Timed);
+            mgr.set_time_limit(30 * 60);
+            let _ = mgr.apply();
+            log::info!("模式已切换为定时 30 分钟");
+        } else if id_str == "timed_1hour" {
+            mgr.set_mode(AwakeMode::Timed);
+            mgr.set_time_limit(60 * 60);
+            let _ = mgr.apply();
+            log::info!("模式已切换为定时 1 小时");
+        } else if id_str == "timed_2hours" {
+            mgr.set_mode(AwakeMode::Timed);
+            mgr.set_time_limit(2 * 60 * 60);
+            let _ = mgr.apply();
+            log::info!("模式已切换为定时 2 小时");
+        } else if id_str == "timed_4hours" {
+            mgr.set_mode(AwakeMode::Timed);
+            mgr.set_time_limit(4 * 60 * 60);
+            let _ = mgr.apply();
+            log::info!("模式已切换为定时 4 小时");
+        } else if id_str == "timed_8hours" {
+            mgr.set_mode(AwakeMode::Timed);
+            mgr.set_time_limit(8 * 60 * 60);
+            let _ = mgr.apply();
+            log::info!("模式已切换为定时 8 小时");
+        } else if id_str == "expirable_22" {
+            mgr.set_mode(AwakeMode::Expirable);
+            if let Some(t) = parse_expire_time(22, 0) {
+                mgr.set_expire_at(t);
             }
+            let _ = mgr.apply();
+            log::info!("模式已切换为过期 今晚 22:00");
+        } else if id_str == "expirable_23" {
+            mgr.set_mode(AwakeMode::Expirable);
+            if let Some(t) = parse_expire_time(23, 0) {
+                mgr.set_expire_at(t);
+            }
+            let _ = mgr.apply();
+            log::info!("模式已切换为过期 今晚 23:00");
+        } else if id_str == "expirable_00" {
+            mgr.set_mode(AwakeMode::Expirable);
+            if let Some(t) = parse_expire_time(24, 0) {
+                mgr.set_expire_at(t);
+            }
+            let _ = mgr.apply();
+            log::info!("模式已切换为过期 今晚 24:00");
+        } else if id_str == "expirable_08" {
+            mgr.set_mode(AwakeMode::Expirable);
+            if let Some(t) = parse_expire_time(32, 0) {
+                mgr.set_expire_at(t);
+            }
+            let _ = mgr.apply();
+            log::info!("模式已切换为过期 明天 08:00");
+        } else if id_str == "expirable_12" {
+            mgr.set_mode(AwakeMode::Expirable);
+            if let Some(t) = parse_expire_time(36, 0) {
+                mgr.set_expire_at(t);
+            }
+            let _ = mgr.apply();
+            log::info!("模式已切换为过期 明天 12:00");
+        } else if id_str == "display_on" {
+            let current = mgr.is_keep_display_on();
+            mgr.set_keep_display_on(!current);
+            let _ = mgr.apply();
+            log::info!("保持屏幕常亮: {}", !current);
+        } else if id_str == "exit" {
+            let _ = mgr.release();
+            log::info!("正在退出...");
+            std::process::exit(0);
         }
-    });
+
+        let current_mode = mgr.get_mode();
+        let keep_display = mgr.is_keep_display_on();
+        drop(mgr);
+
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            update_menu_checked(current_mode, keep_display);
+
+            let tooltip = match current_mode {
+                AwakeMode::Passive => "aweak - 被动模式",
+                AwakeMode::Indefinite => "aweak - 无限期",
+                AwakeMode::Timed => "aweak - 定时",
+                AwakeMode::Expirable => "aweak - 过期",
+            };
+            if let Some(tray) = TRAY_ICON_REF.get() {
+                let _ = tray.0.set_tooltip(Some(tooltip));
+            }
+        });
+    }));
 
     Ok(tray_icon)
 }

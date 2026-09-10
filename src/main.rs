@@ -3,6 +3,7 @@
 mod cli;
 mod config;
 mod core;
+mod crash;
 mod process;
 mod tray;
 
@@ -46,8 +47,41 @@ fn run_message_loop() {
     }
 }
 
+fn init_logger() {
+    let exe_path = std::env::current_exe().unwrap_or_default();
+    let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
+    let log_dir = exe_dir.join("logs");
+
+    std::fs::create_dir_all(&log_dir).ok();
+
+    let log_file = chrono::Local::now().format("%Y-%m-%d.log").to_string();
+    let log_path = log_dir.join(log_file);
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{}][{}][{}] {}",
+                chrono::Local::now().format("%H:%M:%S"),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Info)
+        .chain(fern::log_file(log_path).ok().unwrap_or_else(|| {
+            fern::log_file(exe_dir.join("fallback.log")).expect("无法创建日志文件")
+        }))
+        .apply()
+        .ok();
+}
+
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    init_logger();
+    crash::install();
+
+    log::info!("========================================");
+    log::info!("aweak 已启动");
+    log::info!("========================================");
 
     let cli = Cli::parse();
 
@@ -173,8 +207,12 @@ fn main() {
         }
     }
 
+    log::info!("系统运行中，右键托盘图标可操作");
+
     let manager = Arc::new(Mutex::new(manager));
     let _tray_icon = tray::create_tray_icon(manager.clone()).unwrap();
 
     run_message_loop();
+
+    log::info!("程序退出");
 }
