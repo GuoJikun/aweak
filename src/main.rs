@@ -135,8 +135,10 @@ fn main() {
         manager.set_mode(AwakeMode::Indefinite);
         let _ = manager.apply();
 
+        let mode = manager.get_mode();
+        let keep_display = manager.is_keep_display_on();
         let manager = Arc::new(Mutex::new(manager));
-        let _tray_icon = tray::create_tray_icon(manager.clone(), manager.lock().unwrap().get_mode(), manager.lock().unwrap().is_keep_display_on()).unwrap();
+        let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
         let manager_clone = manager.clone();
         std::thread::spawn(move || {
@@ -151,9 +153,10 @@ fn main() {
         return;
     }
 
-    if cli.use_parent_pid {
-        if let Some(parent_pid) = process::get_parent_pid() {
-            log::info!("等待父进程 {} 退出", parent_pid);
+    // 自动检测父进程：如果父进程不是终端/系统进程，则绑定到父进程
+    if let Some(parent_pid) = process::get_parent_pid() {
+        if !process::is_terminal_or_system_process(parent_pid) {
+            log::info!("检测到父进程 {} 非终端，自动绑定", parent_pid);
             manager.set_keep_display_on(cli.display_on);
             manager.set_mode(AwakeMode::Indefinite);
             let _ = manager.apply();
