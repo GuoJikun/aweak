@@ -133,7 +133,7 @@ fn main() {
         }
     }
 
-    // 有命令行参数时使用命令行参数，否则加载配置文件
+    // 有命令行参数时使用命令行参数，否则默认屏幕常亮
     let has_cli_options = cli.display_on || cli.time_limit.is_some() || cli.expire_at.is_some();
 
     if has_cli_options {
@@ -150,8 +150,8 @@ fn main() {
         } else {
             manager.set_mode(AwakeMode::Indefinite);
         }
-    } else {
-        // 加载配置文件（支持指定路径或使用默认路径）
+    } else if cli.use_pt_config.is_some() {
+        // --use-pt-config 加载配置文件
         let config_path = cli.use_pt_config.as_ref().and_then(|p| p.as_deref());
         let config = Config::load(config_path);
 
@@ -169,6 +169,10 @@ fn main() {
                 manager.set_expire_at(expire_time);
             }
         }
+    } else {
+        // 默认屏幕常亮模式
+        manager.set_mode(AwakeMode::Indefinite);
+        manager.set_keep_display_on(true);
     }
 
     let _ = manager.apply();
