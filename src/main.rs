@@ -48,9 +48,6 @@ fn run_message_loop() {
 }
 
 #[cfg(not(debug_assertions))]
-fn attach_console_if_needed() {}
-
-#[cfg(not(debug_assertions))]
 fn show_error_box(msg: &str) {
     unsafe {
         use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONERROR};
@@ -61,7 +58,9 @@ fn show_error_box(msg: &str) {
 }
 
 #[cfg(debug_assertions)]
-fn attach_console_if_needed() {}
+fn show_error_box(msg: &str) {
+    eprintln!("{}", msg);
+}
 
 fn init_logger() {
     let exe_path = std::env::current_exe().unwrap_or_default();
@@ -127,11 +126,6 @@ fn main() {
     log::info!("========================================");
 
     let cli = Cli::parse();
-
-    // 检测到命令行参数时，附加到父进程控制台以便输出错误信息
-    if cli.display_on || cli.time_limit.is_some() || cli.expire_at.is_some() || cli.use_pt_config.is_some() || cli.pid.is_some() || cli.use_parent_pid {
-        attach_console_if_needed();
-    }
 
     let mut manager = AwakeManager::new();
 
