@@ -52,7 +52,7 @@ impl Config {
             .and_then(|path| path.parent().map(|p| p.join("settings.json")))
     }
 
-    pub fn load(custom_path: Option<&str>) -> Self {
+    pub fn load(custom_path: Option<&str>) -> Result<Self, String> {
         let path = if let Some(p) = custom_path {
             Some(PathBuf::from(p))
         } else {
@@ -61,18 +61,21 @@ impl Config {
 
         if let Some(path) = path {
             log::info!("加载配置文件: {}", path.display());
+            if !path.exists() {
+                return Err(format!("配置文件不存在: {}", path.display()));
+            }
             if let Ok(contents) = fs::read_to_string(&path) {
                 if let Ok(config) = serde_json::from_str(&contents) {
                     log::info!("配置文件加载成功");
-                    return config;
+                    return Ok(config);
                 } else {
-                    log::warn!("配置文件解析失败，使用默认配置");
+                    return Err(format!("配置文件解析失败: {}", path.display()));
                 }
             } else {
-                log::info!("配置文件不存在，使用默认配置");
+                return Err(format!("无法读取配置文件: {}", path.display()));
             }
         }
-        Self::default()
+        Err("无法获取配置文件路径".to_string())
     }
 
     pub fn save(&self) -> std::io::Result<()> {

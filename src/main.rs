@@ -153,20 +153,26 @@ fn main() {
     } else if cli.use_pt_config.is_some() {
         // --use-pt-config 加载配置文件
         let config_path = cli.use_pt_config.as_ref().and_then(|p| p.as_deref());
-        let config = Config::load(config_path);
+        match Config::load(config_path) {
+            Ok(config) => {
+                manager.set_mode(Config::mode_from_u8(config.properties.mode));
+                manager.set_keep_display_on(config.properties.keep_display_on);
 
-        manager.set_mode(Config::mode_from_u8(config.properties.mode));
-        manager.set_keep_display_on(config.properties.keep_display_on);
+                if config.properties.mode == 2 {
+                    let total_seconds = config.properties.interval_hours * 3600
+                        + config.properties.interval_minutes * 60;
+                    manager.set_time_limit(total_seconds as u64);
+                }
 
-        if config.properties.mode == 2 {
-            let total_seconds =
-                config.properties.interval_hours * 3600 + config.properties.interval_minutes * 60;
-            manager.set_time_limit(total_seconds as u64);
-        }
-
-        if let Some(ref expire_str) = config.properties.expiration_datetime {
-            if let Some(expire_time) = parse_datetime(expire_str) {
-                manager.set_expire_at(expire_time);
+                if let Some(ref expire_str) = config.properties.expiration_datetime {
+                    if let Some(expire_time) = parse_datetime(expire_str) {
+                        manager.set_expire_at(expire_time);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("错误: {}", e);
+                std::process::exit(1);
             }
         }
     } else {
