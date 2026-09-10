@@ -142,7 +142,7 @@ fn main() {
         let _ = manager.apply();
 
         let manager = Arc::new(Mutex::new(manager));
-        let _tray_icon = tray::create_tray_icon(manager.clone()).unwrap();
+        let _tray_icon = tray::create_tray_icon(manager.clone(), manager.lock().unwrap().get_mode(), manager.lock().unwrap().is_keep_display_on()).unwrap();
 
         let manager_clone = manager.clone();
         std::thread::spawn(move || {
@@ -164,8 +164,10 @@ fn main() {
             manager.set_mode(AwakeMode::Indefinite);
             let _ = manager.apply();
 
+            let mode = manager.get_mode();
+            let keep_display = manager.is_keep_display_on();
             let manager = Arc::new(Mutex::new(manager));
-            let _tray_icon = tray::create_tray_icon(manager.clone()).unwrap();
+            let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
             let manager_clone = manager.clone();
             std::thread::spawn(move || {
@@ -236,11 +238,12 @@ fn main() {
     let _ = manager.apply();
 
     let mode = manager.get_mode();
+    let keep_display = manager.is_keep_display_on();
 
     if mode == AwakeMode::Timed {
         if let Some(seconds) = manager.get_time_limit() {
             let manager = Arc::new(Mutex::new(manager));
-            let _tray_icon = tray::create_tray_icon(manager.clone()).unwrap();
+            let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
             let manager_clone = manager.clone();
             std::thread::spawn(move || {
@@ -257,7 +260,7 @@ fn main() {
     } else if mode == AwakeMode::Expirable {
         if let Some(expire_at) = manager.get_expire_at() {
             let manager = Arc::new(Mutex::new(manager));
-            let _tray_icon = tray::create_tray_icon(manager.clone()).unwrap();
+            let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
             let manager_clone = manager.clone();
             std::thread::spawn(move || {
@@ -278,7 +281,7 @@ fn main() {
     log::info!("系统运行中，右键托盘图标可操作");
 
     let manager = Arc::new(Mutex::new(manager));
-    let _tray_icon = tray::create_tray_icon(manager.clone()).unwrap();
+    let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
     run_message_loop();
 

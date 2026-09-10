@@ -46,6 +46,8 @@ fn update_menu_checked(current_mode: AwakeMode, keep_display_on: bool) {
 
 pub fn create_tray_icon(
     manager: Arc<Mutex<AwakeManager>>,
+    initial_mode: AwakeMode,
+    initial_keep_display: bool,
 ) -> Result<TrayIcon, Box<dyn std::error::Error>> {
     let menu = Menu::new();
 
@@ -102,6 +104,9 @@ pub fn create_tray_icon(
     let _ = INDEFINITE_ITEM.set(SendSyncWrapper(indefinite_item));
     let _ = DISPLAY_ON_ITEM.set(SendSyncWrapper(display_on_item));
     let _ = TRAY_ICON_REF.set(SendSyncWrapper(tray_icon.clone()));
+
+    // 设置初始菜单状态
+    update_menu_checked(initial_mode, initial_keep_display);
 
     MenuEvent::set_event_handler(Some(move |event: muda::MenuEvent| {
         let mut mgr = manager.lock().unwrap();
