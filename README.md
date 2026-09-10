@@ -93,8 +93,11 @@ aweak --use-pt-config D:\path\settings.json
 | `--time-limit <秒>` | 定时时长 |
 | `--expire-at <时间>` | 过期时间，格式：`YYYY-MM-DD HH:MM:SS` |
 | `--pid <PID>` | 绑定到指定进程 |
-| `--use-parent-pid` | 绑定到父进程 |
 | `--use-pt-config [路径]` | 使用配置文件（默认 exe 同级） |
+
+## 自动父进程绑定
+
+程序会自动检测父进程，如果父进程是非终端程序（如脚本、其他应用），会自动绑定到父进程，父进程退出时 aweak 也退出。
 
 ## 许可证
 
