@@ -13,6 +13,8 @@
 - 支持屏幕常亮控制
 - 系统托盘图标和右键菜单（中文界面）
 - 支持绑定到指定进程，进程退出时自动停止
+- 单例模式，确保只有一个实例运行
+- 支持配置文件
 
 ## 安装
 
@@ -23,7 +25,7 @@ cargo build --release
 ## 使用方法
 
 ```bash
-# 无限期保持唤醒
+# 默认：无限期保持唤醒 + 屏幕常亮
 aweak
 
 # 保持屏幕常亮
@@ -37,6 +39,12 @@ aweak --expire-at "2026-09-10 22:00"
 
 # 绑定到进程，进程退出时自动停止
 aweak --pid 1234
+
+# 使用配置文件
+aweak --use-pt-config
+
+# 使用指定配置文件
+aweak --use-pt-config D:\path\settings.json
 ```
 
 ## 系统托盘
@@ -45,10 +53,37 @@ aweak --pid 1234
 
 - 被动模式（禁用）
 - 无限期
-- 定时
-- 过期
+- 定时（30分钟/1小时/2小时/4小时/8小时）
+- 过期（今晚/明天指定时间）
 - 保持屏幕常亮
 - 退出
+
+## 配置文件
+
+配置文件默认位于 exe 同级目录的 `settings.json`：
+
+```json
+{
+  "properties": {
+    "keep_display_on": false,
+    "mode": 0,
+    "interval_hours": 0,
+    "interval_minutes": 0,
+    "expiration_datetime": null,
+    "custom_tray_times": {}
+  },
+  "name": "Awake",
+  "version": "1.0"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `mode` | u8 | 0=被动, 1=无限期, 2=定时, 3=过期 |
+| `keep_display_on` | bool | 是否保持屏幕常亮 |
+| `interval_hours` | u32 | 定时模式-小时数 |
+| `interval_minutes` | u32 | 定时模式-分钟数 |
+| `expiration_datetime` | string | 过期时间，格式 `YYYY-MM-DD HH:MM:SS` |
 
 ## 命令行参数
 
@@ -59,18 +94,7 @@ aweak --pid 1234
 | `--expire-at <时间>` | 过期时间，格式：`YYYY-MM-DD HH:MM:SS` |
 | `--pid <PID>` | 绑定到指定进程 |
 | `--use-parent-pid` | 绑定到父进程 |
-| `--use-pt-config` | 使用配置文件 |
-
-## 依赖
-
-- windows 0.62
-- tray-icon 0.24
-- muda 0.19
-- clap 4
-- chrono 0.4
-- dirs 7
-- serde / serde_json
-- log / env_logger
+| `--use-pt-config [路径]` | 使用配置文件（默认 exe 同级） |
 
 ## 许可证
 
