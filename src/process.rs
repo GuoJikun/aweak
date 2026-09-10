@@ -25,6 +25,7 @@ pub fn wait_for_process_exit(pid: u32, check_interval: Duration) {
     }
 }
 
+#[allow(non_snake_case)]
 pub fn get_parent_pid() -> Option<u32> {
     unsafe {
         use std::mem;
@@ -42,9 +43,7 @@ pub fn get_parent_pid() -> Option<u32> {
         }
 
         let ntdll = windows::Win32::System::LibraryLoader::LoadLibraryW(
-            windows::core::PCWSTR::from_raw(
-                windows::core::HSTRING::from("ntdll.dll").as_ptr()
-            ),
+            windows::core::PCWSTR::from_raw(windows::core::HSTRING::from("ntdll.dll").as_ptr()),
         )
         .ok()?;
 

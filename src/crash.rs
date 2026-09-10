@@ -1,6 +1,4 @@
-use windows::Win32::System::Diagnostics::Debug::{
-    EXCEPTION_POINTERS, SetUnhandledExceptionFilter,
-};
+use windows::Win32::System::Diagnostics::Debug::{EXCEPTION_POINTERS, SetUnhandledExceptionFilter};
 
 pub fn install() {
     install_panic_hook();
@@ -36,9 +34,7 @@ fn install_unhandled_exception_filter() {
     }
 }
 
-unsafe extern "system" fn exception_filter(
-    exception_info: *const EXCEPTION_POINTERS,
-) -> i32 {
+unsafe extern "system" fn exception_filter(exception_info: *const EXCEPTION_POINTERS) -> i32 {
     unsafe {
         if !exception_info.is_null() {
             let record = (*exception_info).ExceptionRecord;

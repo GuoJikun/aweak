@@ -37,7 +37,9 @@ fn parse_datetime(s: &str) -> Option<SystemTime> {
 
 fn run_message_loop() {
     unsafe {
-        use windows::Win32::UI::WindowsAndMessaging::{GetMessageW, TranslateMessage, DispatchMessageW, MSG};
+        use windows::Win32::UI::WindowsAndMessaging::{
+            DispatchMessageW, GetMessageW, MSG, TranslateMessage,
+        };
 
         let mut msg: MSG = std::mem::zeroed();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
@@ -50,7 +52,7 @@ fn run_message_loop() {
 #[cfg(not(debug_assertions))]
 fn show_error_box(msg: &str) {
     unsafe {
-        use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONERROR};
+        use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
         let hmsg = windows::core::HSTRING::from(msg);
         let htitle = windows::core::HSTRING::from("aweak");
         MessageBoxW(None, &hmsg, &htitle, MB_OK | MB_ICONERROR);
@@ -96,13 +98,8 @@ fn main() {
 
     // 单例模式：使用命名互斥锁确保只有一个实例运行
     let mutex_name = windows::core::HSTRING::from("Global\\aweak_single_instance");
-    let _mutex_guard = unsafe {
-        windows::Win32::System::Threading::CreateMutexW(
-            None,
-            true,
-            &mutex_name,
-        )
-    };
+    let _mutex_guard =
+        unsafe { windows::Win32::System::Threading::CreateMutexW(None, true, &mutex_name) };
 
     // 检查是否已有实例在运行（互斥锁已存在）
     let already_exists = unsafe {
@@ -111,7 +108,7 @@ fn main() {
     if already_exists {
         #[cfg(not(debug_assertions))]
         unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONINFORMATION};
+            use windows::Win32::UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_OK, MessageBoxW};
             let msg = windows::core::HSTRING::from("aweak 已经在运行中！");
             let title = windows::core::HSTRING::from("aweak");
             MessageBoxW(None, &msg, &title, MB_OK | MB_ICONINFORMATION);
