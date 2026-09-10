@@ -62,6 +62,7 @@ impl Config {
         if let Some(path) = path {
             log::info!("加载配置文件: {}", path.display());
             if !path.exists() {
+                log::error!("配置文件不存在: {}", path.display());
                 return Err(format!("配置文件不存在: {}", path.display()));
             }
             if let Ok(contents) = fs::read_to_string(&path) {
@@ -69,9 +70,11 @@ impl Config {
                     log::info!("配置文件加载成功");
                     return Ok(config);
                 } else {
+                    log::error!("配置文件解析失败: {}", path.display());
                     return Err(format!("配置文件解析失败: {}", path.display()));
                 }
             } else {
+                log::error!("无法读取配置文件: {}", path.display());
                 return Err(format!("无法读取配置文件: {}", path.display()));
             }
         }

@@ -47,6 +47,22 @@ fn run_message_loop() {
     }
 }
 
+#[cfg(not(debug_assertions))]
+fn attach_console_if_needed() {}
+
+#[cfg(not(debug_assertions))]
+fn show_error_box(msg: &str) {
+    unsafe {
+        use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONERROR};
+        let hmsg = windows::core::HSTRING::from(msg);
+        let htitle = windows::core::HSTRING::from("aweak");
+        MessageBoxW(None, &hmsg, &htitle, MB_OK | MB_ICONERROR);
+    }
+}
+
+#[cfg(debug_assertions)]
+fn attach_console_if_needed() {}
+
 fn init_logger() {
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(std::path::Path::new("."));
@@ -79,11 +95,43 @@ fn main() {
     init_logger();
     crash::install();
 
+    // 单例模式：使用命名互斥锁确保只有一个实例运行
+    let mutex_name = windows::core::HSTRING::from("Global\\aweak_single_instance");
+    let _mutex_guard = unsafe {
+        windows::Win32::System::Threading::CreateMutexW(
+            None,
+            true,
+            &mutex_name,
+        )
+    };
+
+    // 检查是否已有实例在运行（互斥锁已存在）
+    let already_exists = unsafe {
+        windows::Win32::Foundation::GetLastError().0 == 183 // ERROR_ALREADY_EXISTS
+    };
+    if already_exists {
+        #[cfg(not(debug_assertions))]
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONINFORMATION};
+            let msg = windows::core::HSTRING::from("aweak 已经在运行中！");
+            let title = windows::core::HSTRING::from("aweak");
+            MessageBoxW(None, &msg, &title, MB_OK | MB_ICONINFORMATION);
+        }
+        #[cfg(debug_assertions)]
+        eprintln!("aweak 已经在运行中！");
+        std::process::exit(0);
+    }
+
     log::info!("========================================");
     log::info!("aweak 已启动");
     log::info!("========================================");
 
     let cli = Cli::parse();
+
+    // 检测到命令行参数时，附加到父进程控制台以便输出错误信息
+    if cli.display_on || cli.time_limit.is_some() || cli.expire_at.is_some() || cli.use_pt_config.is_some() || cli.pid.is_some() || cli.use_parent_pid {
+        attach_console_if_needed();
+    }
 
     let mut manager = AwakeManager::new();
 
@@ -171,6 +219,10 @@ fn main() {
                 }
             }
             Err(e) => {
+                log::error!("配置文件错误: {}", e);
+                #[cfg(not(debug_assertions))]
+                show_error_box(&format!("错误: {}", e));
+                #[cfg(debug_assertions)]
                 eprintln!("错误: {}", e);
                 std::process::exit(1);
             }

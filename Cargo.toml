@@ -11,6 +11,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Kernel",
+    "Win32_Security",
 ] }
 tray-icon = "0.24"
 muda = "0.19"
