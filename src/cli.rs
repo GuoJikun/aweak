@@ -19,6 +19,6 @@ pub struct Cli {
     #[arg(long)]
     pub use_parent_pid: bool,
 
-    #[arg(long)]
-    pub use_pt_config: bool,
+    #[arg(long, value_name = "PATH")]
+    pub use_pt_config: Option<Option<String>>,
 }

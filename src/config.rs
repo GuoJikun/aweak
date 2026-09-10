@@ -46,29 +46,45 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn get_config_path() -> Option<PathBuf> {
-        dirs::config_local_dir().map(|path| path.join("aweak").join("settings.json"))
+    pub fn get_default_config_path() -> Option<PathBuf> {
+        std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(|p| p.join("settings.json")))
     }
 
-    pub fn load() -> Self {
-        if let Some(path) = Self::get_config_path() {
+    pub fn load(custom_path: Option<&str>) -> Self {
+        let path = if let Some(p) = custom_path {
+            Some(PathBuf::from(p))
+        } else {
+            Self::get_default_config_path()
+        };
+
+        if let Some(path) = path {
+            log::info!("加载配置文件: {}", path.display());
             if let Ok(contents) = fs::read_to_string(&path) {
                 if let Ok(config) = serde_json::from_str(&contents) {
+                    log::info!("配置文件加载成功");
                     return config;
+                } else {
+                    log::warn!("配置文件解析失败，使用默认配置");
                 }
+            } else {
+                log::info!("配置文件不存在，使用默认配置");
             }
         }
         Self::default()
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        if let Some(path) = Self::get_config_path() {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            let json = serde_json::to_string_pretty(self)?;
-            fs::write(path, json)?;
+        let path = Self::get_default_config_path()
+            .ok_or_else(|| std::io::Error::other("无法获取配置文件路径"))?;
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
         }
+        let json = serde_json::to_string_pretty(self)?;
+        log::info!("配置已保存: {}", path.display());
+        fs::write(&path, json)?;
         Ok(())
     }
 

@@ -133,8 +133,28 @@ fn main() {
         }
     }
 
-    if cli.use_pt_config {
-        let config = Config::load();
+    // 有命令行参数时使用命令行参数，否则加载配置文件
+    let has_cli_options = cli.display_on || cli.time_limit.is_some() || cli.expire_at.is_some();
+
+    if has_cli_options {
+        manager.set_keep_display_on(cli.display_on);
+
+        if let Some(time_limit) = cli.time_limit {
+            manager.set_mode(AwakeMode::Timed);
+            manager.set_time_limit(time_limit);
+        } else if let Some(ref expire_at_str) = cli.expire_at {
+            if let Some(expire_time) = parse_datetime(expire_at_str) {
+                manager.set_mode(AwakeMode::Expirable);
+                manager.set_expire_at(expire_time);
+            }
+        } else {
+            manager.set_mode(AwakeMode::Indefinite);
+        }
+    } else {
+        // 加载配置文件（支持指定路径或使用默认路径）
+        let config_path = cli.use_pt_config.as_ref().and_then(|p| p.as_deref());
+        let config = Config::load(config_path);
+
         manager.set_mode(Config::mode_from_u8(config.properties.mode));
         manager.set_keep_display_on(config.properties.keep_display_on);
 
@@ -148,20 +168,6 @@ fn main() {
             if let Some(expire_time) = parse_datetime(expire_str) {
                 manager.set_expire_at(expire_time);
             }
-        }
-    } else {
-        manager.set_keep_display_on(cli.display_on);
-
-        if let Some(time_limit) = cli.time_limit {
-            manager.set_mode(AwakeMode::Timed);
-            manager.set_time_limit(time_limit);
-        } else if let Some(ref expire_at_str) = cli.expire_at {
-            if let Some(expire_time) = parse_datetime(expire_at_str) {
-                manager.set_mode(AwakeMode::Expirable);
-                manager.set_expire_at(expire_time);
-            }
-        } else {
-            manager.set_mode(AwakeMode::Indefinite);
         }
     }
 
