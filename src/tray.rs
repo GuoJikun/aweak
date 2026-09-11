@@ -1,3 +1,4 @@
+use crate::autostart;
 use crate::core::{AwakeManager, AwakeMode};
 use chrono::{DateTime, Local};
 use muda::{CheckMenuItem, Menu, MenuEvent, PredefinedMenuItem, Submenu};
@@ -12,6 +13,7 @@ unsafe impl<T> Sync for SendSyncWrapper<T> {}
 static PASSIVE_ITEM: OnceLock<SendSyncWrapper<CheckMenuItem>> = OnceLock::new();
 static INDEFINITE_ITEM: OnceLock<SendSyncWrapper<CheckMenuItem>> = OnceLock::new();
 static DISPLAY_ON_ITEM: OnceLock<SendSyncWrapper<CheckMenuItem>> = OnceLock::new();
+static AUTOSTART_ITEM: OnceLock<SendSyncWrapper<CheckMenuItem>> = OnceLock::new();
 static TRAY_ICON_REF: OnceLock<SendSyncWrapper<TrayIcon>> = OnceLock::new();
 
 fn parse_expire_time(hours: u32, minutes: u32) -> Option<SystemTime> {
@@ -32,7 +34,7 @@ fn parse_expire_time(hours: u32, minutes: u32) -> Option<SystemTime> {
     Some(UNIX_EPOCH + Duration::from_secs(ts))
 }
 
-fn update_menu_checked(current_mode: AwakeMode, keep_display_on: bool) {
+fn update_menu_checked(current_mode: AwakeMode, keep_display_on: bool, autostart_enabled: bool) {
     if let Some(item) = PASSIVE_ITEM.get() {
         item.0.set_checked(current_mode == AwakeMode::Passive);
     }
@@ -41,6 +43,9 @@ fn update_menu_checked(current_mode: AwakeMode, keep_display_on: bool) {
     }
     if let Some(item) = DISPLAY_ON_ITEM.get() {
         item.0.set_checked(keep_display_on);
+    }
+    if let Some(item) = AUTOSTART_ITEM.get() {
+        item.0.set_checked(autostart_enabled);
     }
 }
 
@@ -80,6 +85,13 @@ pub fn create_tray_icon(
 
     let separator1 = PredefinedMenuItem::separator();
     let display_on_item = CheckMenuItem::with_id("display_on", "保持屏幕常亮", true, false, None);
+    let autostart_item = CheckMenuItem::with_id(
+        "autostart",
+        "开机自启动",
+        true,
+        autostart::is_autostart_enabled(),
+        None,
+    );
     let separator2 = PredefinedMenuItem::separator();
     let exit_item = muda::MenuItem::with_id("exit", "退出", true, None);
 
@@ -89,6 +101,7 @@ pub fn create_tray_icon(
     menu.append(&expirable_menu)?;
     menu.append(&separator1)?;
     menu.append(&display_on_item)?;
+    menu.append(&autostart_item)?;
     menu.append(&separator2)?;
     menu.append(&exit_item)?;
 
@@ -103,10 +116,15 @@ pub fn create_tray_icon(
     let _ = PASSIVE_ITEM.set(SendSyncWrapper(passive_item));
     let _ = INDEFINITE_ITEM.set(SendSyncWrapper(indefinite_item));
     let _ = DISPLAY_ON_ITEM.set(SendSyncWrapper(display_on_item));
+    let _ = AUTOSTART_ITEM.set(SendSyncWrapper(autostart_item));
     let _ = TRAY_ICON_REF.set(SendSyncWrapper(tray_icon.clone()));
 
     // 设置初始菜单状态
-    update_menu_checked(initial_mode, initial_keep_display);
+    update_menu_checked(
+        initial_mode,
+        initial_keep_display,
+        autostart::is_autostart_enabled(),
+    );
 
     MenuEvent::set_event_handler(Some(move |event: muda::MenuEvent| {
         let mut mgr = manager.lock().unwrap();
@@ -187,6 +205,15 @@ pub fn create_tray_icon(
             mgr.set_keep_display_on(!current);
             let _ = mgr.apply();
             log::info!("保持屏幕常亮: {}", !current);
+        } else if id_str == "autostart" {
+            match autostart::toggle_autostart() {
+                Ok(enabled) => {
+                    log::info!("开机自启动: {}", if enabled { "已启用" } else { "已禁用" });
+                }
+                Err(e) => {
+                    log::error!("切换自启动失败: {}", e);
+                }
+            }
         } else if id_str == "exit" {
             let _ = mgr.release();
             log::info!("正在退出...");
@@ -195,11 +222,12 @@ pub fn create_tray_icon(
 
         let current_mode = mgr.get_mode();
         let keep_display = mgr.is_keep_display_on();
+        let autostart_enabled = autostart::is_autostart_enabled();
         drop(mgr);
 
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(50));
-            update_menu_checked(current_mode, keep_display);
+            update_menu_checked(current_mode, keep_display, autostart_enabled);
 
             let tooltip = match current_mode {
                 AwakeMode::Passive => "aweak - 被动模式",

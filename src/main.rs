@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autostart;
 mod cli;
 mod config;
 mod core;
@@ -123,6 +124,63 @@ fn main() {
     log::info!("========================================");
 
     let cli = Cli::parse();
+
+    // 处理自启动命令行参数
+    if cli.autostart {
+        match autostart::enable_autostart() {
+            Ok(()) => {
+                log::info!("已启用开机自启动");
+                #[cfg(not(debug_assertions))]
+                {
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        MB_ICONINFORMATION, MB_OK, MessageBoxW,
+                    };
+                    let msg = windows::core::HSTRING::from("已启用开机自启动");
+                    let title = windows::core::HSTRING::from("aweak");
+                    unsafe { MessageBoxW(None, &msg, &title, MB_OK | MB_ICONINFORMATION) };
+                }
+                #[cfg(debug_assertions)]
+                eprintln!("已启用开机自启动");
+                return;
+            }
+            Err(e) => {
+                log::error!("启用自启动失败: {}", e);
+                #[cfg(not(debug_assertions))]
+                show_error_box(&format!("启用自启动失败: {}", e));
+                #[cfg(debug_assertions)]
+                eprintln!("启用自启动失败: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    if cli.no_autostart {
+        match autostart::disable_autostart() {
+            Ok(()) => {
+                log::info!("已禁用开机自启动");
+                #[cfg(not(debug_assertions))]
+                {
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        MB_ICONINFORMATION, MB_OK, MessageBoxW,
+                    };
+                    let msg = windows::core::HSTRING::from("已禁用开机自启动");
+                    let title = windows::core::HSTRING::from("aweak");
+                    unsafe { MessageBoxW(None, &msg, &title, MB_OK | MB_ICONINFORMATION) };
+                }
+                #[cfg(debug_assertions)]
+                eprintln!("已禁用开机自启动");
+                return;
+            }
+            Err(e) => {
+                log::error!("禁用自启动失败: {}", e);
+                #[cfg(not(debug_assertions))]
+                show_error_box(&format!("禁用自启动失败: {}", e));
+                #[cfg(debug_assertions)]
+                eprintln!("禁用自启动失败: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     let mut manager = AwakeManager::new();
 

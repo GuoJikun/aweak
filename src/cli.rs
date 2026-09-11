@@ -18,4 +18,10 @@ pub struct Cli {
 
     #[arg(long, value_name = "PATH")]
     pub use_pt_config: Option<Option<String>>,
+
+    #[arg(long)]
+    pub autostart: bool,
+
+    #[arg(long)]
+    pub no_autostart: bool,
 }
