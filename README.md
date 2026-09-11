@@ -15,6 +15,7 @@
 - 支持绑定到指定进程，进程退出时自动停止
 - 单例模式，确保只有一个实例运行
 - 支持配置文件
+- 支持开机自启动
 
 ## 安装
 
@@ -45,6 +46,12 @@ aweak --use-pt-config
 
 # 使用指定配置文件
 aweak --use-pt-config D:\path\settings.json
+
+# 启用开机自启动
+aweak --autostart
+
+# 禁用开机自启动
+aweak --no-autostart
 ```
 
 ## 系统托盘
@@ -56,6 +63,7 @@ aweak --use-pt-config D:\path\settings.json
 - 定时（30分钟/1小时/2小时/4小时/8小时）
 - 过期（今晚/明天指定时间）
 - 保持屏幕常亮
+- 开机自启动
 - 退出
 
 ## 配置文件
