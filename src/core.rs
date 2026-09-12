@@ -69,7 +69,16 @@ impl AwakeManager {
             return Err(io::Error::last_os_error());
         }
 
-        log::info!("已应用执行状态: {:#x}", flags.0);
+        if self.mode != AwakeMode::Passive {
+            let prevents_system = flags.0 & ES_SYSTEM_REQUIRED.0 != 0;
+            let prevents_display = flags.0 & ES_DISPLAY_REQUIRED.0 != 0;
+            if prevents_system {
+                log::info!("[阻止休眠] 已阻止系统休眠");
+            }
+            if prevents_display {
+                log::info!("[阻止熄屏] 已阻止屏幕熄灭");
+            }
+        }
         Ok(())
     }
 
@@ -80,7 +89,7 @@ impl AwakeManager {
             return Err(io::Error::last_os_error());
         }
 
-        log::info!("已释放执行状态");
+        log::info!("[释放] 已释放休眠和熄屏阻止");
         Ok(())
     }
 
