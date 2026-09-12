@@ -5,6 +5,7 @@ mod cli;
 mod config;
 mod core;
 mod crash;
+mod notify;
 mod process;
 mod tray;
 
@@ -13,8 +14,40 @@ use clap::Parser;
 use cli::Cli;
 use config::Config;
 use core::{AwakeManager, AwakeMode};
+use notify::show_notification_timed;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+fn mode_description(mode: AwakeMode, keep_display: bool, time_limit: Option<u64>, expire_at: Option<SystemTime>) -> (String, String) {
+    let title = "aweak 已启动".to_string();
+    let mut desc = match mode {
+        AwakeMode::Passive => "被动模式（已禁用）".to_string(),
+        AwakeMode::Indefinite => "无限期阻止系统休眠".to_string(),
+        AwakeMode::Timed => {
+            if let Some(seconds) = time_limit {
+                if seconds >= 3600 {
+                    format!("定时 {} 小时", seconds / 3600)
+                } else {
+                    format!("定时 {} 分钟", seconds / 60)
+                }
+            } else {
+                "定时模式".to_string()
+            }
+        }
+        AwakeMode::Expirable => {
+            if let Some(expire) = expire_at {
+                let dt: chrono::DateTime<chrono::Local> = expire.into();
+                format!("阻止系统休眠至 {}", dt.format("%H:%M"))
+            } else {
+                "过期模式".to_string()
+            }
+        }
+    };
+    if keep_display {
+        desc.push_str("（屏幕常亮）");
+    }
+    (title, desc)
+}
 
 fn parse_datetime(s: &str) -> Option<SystemTime> {
     if let Ok(dt) = DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S") {
@@ -195,6 +228,13 @@ fn main() {
         let manager = Arc::new(Mutex::new(manager));
         let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
+        let (time_limit, expire_at) = {
+            let mgr = manager.lock().unwrap();
+            (mgr.get_time_limit(), mgr.get_expire_at())
+        };
+        let (t, d) = mode_description(mode, keep_display, time_limit, expire_at);
+        show_notification_timed(&t, &d, 3000);
+
         let manager_clone = manager.clone();
         std::thread::spawn(move || {
             process::wait_for_process_exit(pid, Duration::from_secs(1));
@@ -220,6 +260,13 @@ fn main() {
             let keep_display = manager.is_keep_display_on();
             let manager = Arc::new(Mutex::new(manager));
             let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
+
+            let (time_limit, expire_at) = {
+                let mgr = manager.lock().unwrap();
+                (mgr.get_time_limit(), mgr.get_expire_at())
+            };
+            let (t, d) = mode_description(mode, keep_display, time_limit, expire_at);
+            show_notification_timed(&t, &d, 3000);
 
             let manager_clone = manager.clone();
             std::thread::spawn(move || {
@@ -297,6 +344,9 @@ fn main() {
             let manager = Arc::new(Mutex::new(manager));
             let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
+            let (t, d) = mode_description(mode, keep_display, Some(seconds), None);
+            show_notification_timed(&t, &d, 3000);
+
             let manager_clone = manager.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_secs(seconds));
@@ -313,6 +363,9 @@ fn main() {
         if let Some(expire_at) = manager.get_expire_at() {
             let manager = Arc::new(Mutex::new(manager));
             let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
+
+            let (t, d) = mode_description(mode, keep_display, None, Some(expire_at));
+            show_notification_timed(&t, &d, 3000);
 
             let manager_clone = manager.clone();
             std::thread::spawn(move || {
@@ -334,6 +387,13 @@ fn main() {
 
     let manager = Arc::new(Mutex::new(manager));
     let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
+
+    let (time_limit, expire_at) = {
+        let mgr = manager.lock().unwrap();
+        (mgr.get_time_limit(), mgr.get_expire_at())
+    };
+    let (t, d) = mode_description(mode, keep_display, time_limit, expire_at);
+    show_notification_timed(&t, &d, 3000);
 
     run_message_loop();
 
