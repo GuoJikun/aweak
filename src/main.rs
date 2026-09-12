@@ -6,6 +6,7 @@ mod config;
 mod core;
 mod crash;
 mod notify;
+mod power;
 mod process;
 mod tray;
 
@@ -129,6 +130,7 @@ fn init_logger() {
 fn main() {
     init_logger();
     crash::install();
+    power::start_power_monitor();
 
     // 单例模式：使用命名互斥锁确保只有一个实例运行
     let mutex_name = windows::core::HSTRING::from("Global\\aweak_single_instance");
