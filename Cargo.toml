@@ -1,6 +1,6 @@
 [package]
 name = "aweak"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2024"
 description = "防止系统休眠和屏幕熄灭的 Windows 工具"
 
@@ -20,8 +20,8 @@ windows = { version = "0.62", features = [
     "Win32_System_Registry",
     "Win32_System_SystemServices",
 ] }
-tray-icon = "0.24"
-muda = "0.19"
+tray-icon = "0.25"
+muda = "0.20"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
