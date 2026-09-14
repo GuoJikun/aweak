@@ -1,4 +1,5 @@
 use crate::autostart;
+use crate::config::Config;
 use crate::core::{AwakeManager, AwakeMode};
 use chrono::{DateTime, Local};
 use muda::{CheckMenuItem, Menu, MenuEvent, PredefinedMenuItem, Submenu};
@@ -134,36 +135,43 @@ pub fn create_tray_icon(
         if id_str == "passive" {
             mgr.set_mode(AwakeMode::Passive);
             let _ = mgr.release();
+            Config::update_mode(AwakeMode::Passive);
             log::info!("模式已切换为被动模式");
         } else if id_str == "indefinite" {
             mgr.set_mode(AwakeMode::Indefinite);
             mgr.set_time_limit(0);
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Indefinite);
             log::info!("模式已切换为无限期");
         } else if id_str == "timed_30min" {
             mgr.set_mode(AwakeMode::Timed);
             mgr.set_time_limit(30 * 60);
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Timed);
             log::info!("模式已切换为定时 30 分钟");
         } else if id_str == "timed_1hour" {
             mgr.set_mode(AwakeMode::Timed);
             mgr.set_time_limit(60 * 60);
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Timed);
             log::info!("模式已切换为定时 1 小时");
         } else if id_str == "timed_2hours" {
             mgr.set_mode(AwakeMode::Timed);
             mgr.set_time_limit(2 * 60 * 60);
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Timed);
             log::info!("模式已切换为定时 2 小时");
         } else if id_str == "timed_4hours" {
             mgr.set_mode(AwakeMode::Timed);
             mgr.set_time_limit(4 * 60 * 60);
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Timed);
             log::info!("模式已切换为定时 4 小时");
         } else if id_str == "timed_8hours" {
             mgr.set_mode(AwakeMode::Timed);
             mgr.set_time_limit(8 * 60 * 60);
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Timed);
             log::info!("模式已切换为定时 8 小时");
         } else if id_str == "expirable_22" {
             mgr.set_mode(AwakeMode::Expirable);
@@ -171,6 +179,7 @@ pub fn create_tray_icon(
                 mgr.set_expire_at(t);
             }
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Expirable);
             log::info!("模式已切换为过期 今晚 22:00");
         } else if id_str == "expirable_23" {
             mgr.set_mode(AwakeMode::Expirable);
@@ -178,6 +187,7 @@ pub fn create_tray_icon(
                 mgr.set_expire_at(t);
             }
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Expirable);
             log::info!("模式已切换为过期 今晚 23:00");
         } else if id_str == "expirable_00" {
             mgr.set_mode(AwakeMode::Expirable);
@@ -185,6 +195,7 @@ pub fn create_tray_icon(
                 mgr.set_expire_at(t);
             }
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Expirable);
             log::info!("模式已切换为过期 今晚 24:00");
         } else if id_str == "expirable_08" {
             mgr.set_mode(AwakeMode::Expirable);
@@ -192,6 +203,7 @@ pub fn create_tray_icon(
                 mgr.set_expire_at(t);
             }
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Expirable);
             log::info!("模式已切换为过期 明天 08:00");
         } else if id_str == "expirable_12" {
             mgr.set_mode(AwakeMode::Expirable);
@@ -199,11 +211,13 @@ pub fn create_tray_icon(
                 mgr.set_expire_at(t);
             }
             let _ = mgr.apply();
+            Config::update_mode(AwakeMode::Expirable);
             log::info!("模式已切换为过期 明天 12:00");
         } else if id_str == "display_on" {
             let current = mgr.is_keep_display_on();
             mgr.set_keep_display_on(!current);
             let _ = mgr.apply();
+            Config::update_keep_display_on(!current);
             log::info!("保持屏幕常亮: {}", !current);
         } else if id_str == "autostart" {
             match autostart::toggle_autostart() {

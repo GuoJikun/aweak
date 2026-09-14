@@ -158,6 +158,9 @@ fn main() {
     log::info!("aweak 已启动");
     log::info!("========================================");
 
+    // 初始化配置（尝试加载已保存的状态）
+    config::Config::init_current(None);
+
     let cli = Cli::parse();
 
     // 处理自启动命令行参数
@@ -221,8 +224,11 @@ fn main() {
 
     if let Some(pid) = cli.pid {
         log::info!("等待进程 {} 退出", pid);
-        manager.set_keep_display_on(cli.display_on);
-        manager.set_mode(AwakeMode::Indefinite);
+        {
+            let saved_config = Config::current().lock().unwrap();
+            manager.set_keep_display_on(saved_config.properties.keep_display_on);
+            manager.set_mode(Config::mode_from_u8(saved_config.properties.mode));
+        }
         let _ = manager.apply();
 
         let mode = manager.get_mode();
@@ -254,8 +260,11 @@ fn main() {
     if let Some(parent_pid) = process::get_parent_pid() {
         if !process::is_terminal_or_system_process(parent_pid) {
             log::info!("检测到父进程 {} 非终端，自动绑定", parent_pid);
-            manager.set_keep_display_on(cli.display_on);
-            manager.set_mode(AwakeMode::Indefinite);
+            {
+                let saved_config = Config::current().lock().unwrap();
+                manager.set_keep_display_on(saved_config.properties.keep_display_on);
+                manager.set_mode(Config::mode_from_u8(saved_config.properties.mode));
+            }
             let _ = manager.apply();
 
             let mode = manager.get_mode();
@@ -331,9 +340,23 @@ fn main() {
             }
         }
     } else {
-        // 默认屏幕常亮模式
-        manager.set_mode(AwakeMode::Indefinite);
-        manager.set_keep_display_on(true);
+        // 从已保存的配置加载状态
+        let saved_config = Config::current().lock().unwrap();
+        manager.set_mode(Config::mode_from_u8(saved_config.properties.mode));
+        manager.set_keep_display_on(saved_config.properties.keep_display_on);
+
+        if saved_config.properties.mode == 2 {
+            let total_seconds = saved_config.properties.interval_hours * 3600
+                + saved_config.properties.interval_minutes * 60;
+            manager.set_time_limit(total_seconds as u64);
+        }
+
+        if let Some(ref expire_str) = saved_config.properties.expiration_datetime {
+            if let Some(expire_time) = parse_datetime(expire_str) {
+                manager.set_expire_at(expire_time);
+            }
+        }
+        drop(saved_config);
     }
 
     let _ = manager.apply();

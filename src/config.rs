@@ -2,8 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use crate::core::AwakeMode;
+
+static CURRENT_CONFIG: OnceLock<std::sync::Mutex<Config>> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -111,5 +114,43 @@ impl Config {
             AwakeMode::Timed => 2,
             AwakeMode::Expirable => 3,
         }
+    }
+
+    /// 获取当前运行配置（全局单例）
+    pub fn current() -> &'static std::sync::Mutex<Config> {
+        CURRENT_CONFIG.get_or_init(|| {
+            std::sync::Mutex::new(Config::default())
+        })
+    }
+
+    /// 初始化当前配置（从文件加载或使用默认值）
+    pub fn init_current(custom_path: Option<&str>) {
+        let config = Self::load(custom_path).unwrap_or_default();
+        let mut current = Self::current().lock().unwrap();
+        *current = config;
+    }
+
+    /// 保存当前配置到文件
+    pub fn save_current() -> std::io::Result<()> {
+        let current = Self::current().lock().unwrap();
+        current.save()
+    }
+
+    /// 更新当前配置的 keep_display_on 状态并保存
+    pub fn update_keep_display_on(keep_display_on: bool) {
+        {
+            let mut current = Self::current().lock().unwrap();
+            current.properties.keep_display_on = keep_display_on;
+        }
+        let _ = Self::save_current();
+    }
+
+    /// 更新当前配置的 mode 状态并保存
+    pub fn update_mode(mode: AwakeMode) {
+        {
+            let mut current = Self::current().lock().unwrap();
+            current.properties.mode = Self::mode_to_u8(mode);
+        }
+        let _ = Self::save_current();
     }
 }
