@@ -130,7 +130,6 @@ fn init_logger() {
 fn main() {
     init_logger();
     crash::install();
-    power::start_power_monitor();
 
     // 单例模式：使用命名互斥锁确保只有一个实例运行
     let mutex_name = windows::core::HSTRING::from("Global\\aweak_single_instance");
@@ -233,6 +232,11 @@ fn main() {
 
         let mode = manager.get_mode();
         let keep_display = manager.is_keep_display_on();
+
+        // 启动电源监控（包含锁屏检测）
+        power::init_power_monitor(keep_display);
+        power::start_power_monitor();
+
         let manager = Arc::new(Mutex::new(manager));
         let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
@@ -269,6 +273,11 @@ fn main() {
 
             let mode = manager.get_mode();
             let keep_display = manager.is_keep_display_on();
+
+            // 启动电源监控（包含锁屏检测）
+            power::init_power_monitor(keep_display);
+            power::start_power_monitor();
+
             let manager = Arc::new(Mutex::new(manager));
             let _tray_icon = tray::create_tray_icon(manager.clone(), mode, keep_display).unwrap();
 
@@ -363,6 +372,10 @@ fn main() {
 
     let mode = manager.get_mode();
     let keep_display = manager.is_keep_display_on();
+
+    // 启动电源监控（包含锁屏检测）
+    power::init_power_monitor(keep_display);
+    power::start_power_monitor();
 
     if mode == AwakeMode::Timed {
         if let Some(seconds) = manager.get_time_limit() {

@@ -217,6 +217,8 @@ pub fn create_tray_icon(
             let current = mgr.is_keep_display_on();
             mgr.set_keep_display_on(!current);
             let _ = mgr.apply();
+            // 同步更新电源监控中的状态
+            crate::power::update_display_on_state(!current);
             Config::update_keep_display_on(!current);
             log::info!("保持屏幕常亮: {}", !current);
         } else if id_str == "autostart" {
